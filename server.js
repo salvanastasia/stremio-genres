@@ -150,6 +150,24 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 204, '');
   const url = new URL(req.url, 'http://x');
 
+  // Accesso tramite pagina Stremio (anche per chi entra con Facebook)
+  if (url.pathname === '/link/create') {
+    try {
+      const r = await account.linkCreate();
+      return send(res, 200, { code: r.code, link: r.link, qrcode: r.qrcode });
+    } catch (e) { return send(res, 502, { error: e.message }); }
+  }
+  if (url.pathname === '/link/read') {
+    const code = url.searchParams.get('code') || '';
+    if (!/^[\w-]{3,64}$/.test(code)) return send(res, 400, { error: 'Codice non valido' });
+    try {
+      const authKey = await account.linkRead(code);
+      if (!authKey) return send(res, 200, { pending: true });
+      const addons = await account.installedAddons(authKey);
+      return send(res, 200, { authKey, addons });
+    } catch (e) { return send(res, 502, { error: e.message }); }
+  }
+
   // Importa gli addon dall'account Stremio. Le credenziali non vengono salvate né registrate.
   if (req.method === 'POST' && url.pathname === '/import') {
     try {

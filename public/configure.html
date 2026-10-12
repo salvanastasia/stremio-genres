@@ -46,10 +46,25 @@
 
   <section>
     <h2>1. Importa i tuoi addon da Stremio</h2>
-    <p class="hint">Accedi con l'account Stremio per prendere in automatico tutti gli addon con cataloghi che hai installato. Email e password servono solo per questo accesso e non vengono salvate.</p>
-    <input type="email" id="email" placeholder="Email Stremio" autocomplete="username">
-    <input type="password" id="password" placeholder="Password" autocomplete="current-password">
-    <button id="import">Importa i miei addon</button>
+    <p class="hint">Accedi al tuo account Stremio per prendere in automatico tutti gli addon con cataloghi che hai installato. Funziona anche se entri con Facebook.</p>
+    <button id="linkBtn">Accedi con Stremio</button>
+    <div id="linkBox" class="linkbox" hidden>
+      <p class="hint" style="margin:14px 0 8px">Apri la pagina di Stremio, accedi come fai di solito (anche con Facebook) e conferma. Questa pagina si aggiorna da sola.</p>
+      <div class="actions">
+        <a class="btn" id="linkOpen" href="#" target="_blank" rel="noopener">Apri pagina Stremio</a>
+      </div>
+      <p class="hint" style="margin:12px 0 0">Codice: <b id="linkCode"></b></p>
+      <img id="linkQr" alt="" hidden style="margin-top:10px;width:180px;height:180px;background:#fff;border-radius:10px;padding:8px">
+    </div>
+    <details style="margin-top:14px">
+      <summary style="font-size:15px">Oppure accedi con email e password</summary>
+      <div style="margin-top:12px">
+        <input type="email" id="email" placeholder="Email Stremio" autocomplete="username">
+        <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+        <button id="import" class="ghost" style="padding:12px 16px">Importa i miei addon</button>
+        <p class="warn">Email e password servono solo per questo accesso e non vengono salvate.</p>
+      </div>
+    </details>
     <p class="msg" id="importMsg"></p>
     <p></p>
     <label class="chip"><input type="checkbox" id="autosync"> Sincronizzazione automatica: includi anche gli addon che installerò in futuro</label>
@@ -149,6 +164,54 @@ if (saved.pages) $('pages').value = saved.pages;
 for (const k of ['enrich', 'useGenreFilters', 'browse']) if (saved[k] === false) $(k).checked = false;
 if (authKey) { $('autosync').checked = true; $('importMsg').className = 'msg ok'; $('importMsg').textContent = 'Sincronizzazione automatica attiva.'; }
 
+function applyImport(data) {
+  const msg = $('importMsg');
+  authKey = data.authKey;
+  const current = $('addons').value.split(/\s+/).filter(Boolean).filter(u => !DEFAULT_ADDONS.includes(u));
+  $('addons').value = [...new Set([...data.addons.map(a => a.url), ...current])].join('\n');
+  msg.className = 'msg ok';
+  msg.textContent = data.addons.length
+    ? `✓ Collegato. Importati ${data.addons.length} addon: ${data.addons.map(a => a.name).join(', ')}`
+    : 'Collegato, ma nel tuo account non ci sono addon con cataloghi.';
+}
+
+let pollTimer = null;
+$('linkBtn').onclick = async () => {
+  const msg = $('importMsg');
+  clearInterval(pollTimer);
+  msg.className = 'msg'; msg.textContent = 'Creo il codice di accesso…';
+  try {
+    const r = await fetch('/link/create');
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Stremio non risponde');
+    $('linkOpen').href = d.link;
+    $('linkCode').textContent = d.code;
+    if (d.qrcode) {
+      $('linkQr').src = /^(data:|https?:)/.test(d.qrcode) ? d.qrcode : 'data:image/png;base64,' + d.qrcode;
+      $('linkQr').hidden = false;
+    }
+    $('linkBox').hidden = false;
+    msg.textContent = 'In attesa della conferma su Stremio…';
+    const started = Date.now();
+    pollTimer = setInterval(async () => {
+      if (Date.now() - started > 10 * 60 * 1000) {
+        clearInterval(pollTimer); msg.className = 'msg err'; msg.textContent = 'Tempo scaduto, premi di nuovo “Accedi con Stremio”.'; return;
+      }
+      try {
+        const rr = await fetch('/link/read?code=' + encodeURIComponent(d.code));
+        const dd = await rr.json();
+        if (dd.pending) return;
+        clearInterval(pollTimer);
+        if (!rr.ok) throw new Error(dd.error || 'Accesso non riuscito');
+        $('linkBox').hidden = true;
+        applyImport(dd);
+      } catch (e) { clearInterval(pollTimer); msg.className = 'msg err'; msg.textContent = e.message; }
+    }, 3000);
+  } catch (e) {
+    msg.className = 'msg err'; msg.textContent = e.message;
+  }
+};
+
 $('import').onclick = async () => {
   const msg = $('importMsg');
   msg.className = 'msg'; msg.textContent = 'Accesso in corso…';
@@ -160,16 +223,8 @@ $('import').onclick = async () => {
     });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || 'Importazione non riuscita');
-    authKey = data.authKey;
     $('password').value = '';
-    const current = $('addons').value.split(/\s+/).filter(Boolean)
-      .filter(u => !DEFAULT_ADDONS.includes(u));
-    const urls = [...new Set([...data.addons.map(a => a.url), ...current])];
-    $('addons').value = urls.join('\n');
-    msg.className = 'msg ok';
-    msg.textContent = data.addons.length
-      ? `Importati ${data.addons.length} addon: ${data.addons.map(a => a.name).join(', ')}`
-      : 'Nessun addon con cataloghi trovato nel tuo account.';
+    applyImport(data);
   } catch (e) {
     msg.className = 'msg err'; msg.textContent = e.message;
   } finally {
@@ -189,7 +244,7 @@ function b64url(str) {
 $('go').onclick = () => {
   const addons = $('addons').value.split(/\s+/).map(s => s.trim()).filter(s => /^(https?|stremio):\/\//i.test(s));
   const sync = $('autosync').checked;
-  if (sync && !authKey) { alert('Per la sincronizzazione automatica premi prima “Importa i miei addon”.'); return; }
+  if (sync && !authKey) { alert('Per la sincronizzazione automatica premi prima “Accedi con Stremio”.'); return; }
   if (!addons.length && !sync) { alert('Inserisci almeno un link manifest oppure importa i tuoi addon.'); return; }
   const cfg = {
     addons,

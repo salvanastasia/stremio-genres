@@ -47,11 +47,19 @@ function fakeAddon(port, manifest, catalogFn) {
 
   // Finta API account Stremio
   process.env.STREMIO_API = 'http://127.0.0.1:7103/api';
+  process.env.STREMIO_LINK_API = 'http://127.0.0.1:7103/link/v2';
+  let reads = 0;
   const api = await new Promise(r => {
     const s = http.createServer((req, res) => {
       let d = ''; req.on('data', c => d += c); req.on('end', () => {
         const body = JSON.parse(d || '{}');
         res.setHeader('content-type', 'application/json');
+        if (req.url === '/link/v2/create?type=Create') return res.end(JSON.stringify({ result: { code: 'ABC12', link: 'https://www.stremio.com/link?code=ABC12', qrcode: 'iVBORw0KGgo=' } }));
+        if (req.url === '/link/v2/read?type=Read&code=ABC12') {
+          reads++;
+          if (reads < 2) return res.end(JSON.stringify({ error: { message: 'Not confirmed', code: 1 } }));
+          return res.end(JSON.stringify({ result: { authKey: 'chiave-valida-123' } }));
+        }
         if (req.url === '/api/login') {
           if (body.email === 'io@test.it' && body.password === 'ok') return res.end(JSON.stringify({ result: { authKey: 'chiave-valida-123' } }));
           return res.end(JSON.stringify({ error: { message: 'Password errata' } }));
@@ -120,6 +128,17 @@ function fakeAddon(port, manifest, catalogFn) {
   const ok = await post('/import', { email: 'io@test.it', password: 'ok' });
   assert.equal(ok.data.authKey, 'chiave-valida-123');
   assert.deepEqual(ok.data.addons.map(x => x.name), ['A'], 'esclusi sé stesso e addon senza cataloghi');
+
+  // Accesso tramite pagina Stremio (Facebook): prima in attesa, poi chiave + addon
+  const lc = await get('/link/create');
+  assert.equal(lc.code, 'ABC12'); assert(lc.link.includes('ABC12'));
+  const r1 = await get('/link/read?code=ABC12');
+  assert.equal(r1.pending, true);
+  const r2 = await get('/link/read?code=ABC12');
+  assert.equal(r2.authKey, 'chiave-valida-123');
+  assert.deepEqual(r2.addons.map(x => x.name), ['A']);
+  const badCode = await fetch('http://127.0.0.1:7100/link/read?code=../x');
+  assert.equal(badCode.status, 400);
 
   // Sincronizzazione automatica: nessun link manuale, solo authKey
   const cfgSync = Buffer.from(JSON.stringify({ authKey: 'chiave-valida-123', movie: ['commedia'], series: [], enrich: false })).toString('base64url');

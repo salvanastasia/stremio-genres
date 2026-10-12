@@ -17,7 +17,7 @@ Raccoglie i titoli dai **cataloghi di qualsiasi addon** che indichi e li riorgan
 
 ## Importazione automatica degli addon
 
-Nella pagina di configurazione puoi accedere con il tuo account Stremio: l'addon legge la lista degli addon installati e usa quelli con cataloghi (escludendo sé stesso e gli addon di soli stream). Email e password servono solo a ottenere la chiave di sessione e non vengono salvate.
+Nella pagina di configurazione premi **Accedi con Stremio**: si apre la pagina di Stremio dove entri come fai di solito (anche con Facebook) e confermi. In alternativa puoi usare email e password. L'addon legge la lista degli addon installati e usa quelli con cataloghi (escludendo sé stesso e gli addon di soli stream). Email e password servono solo a ottenere la chiave di sessione e non vengono salvate.
 
 Con **Sincronizzazione automatica** la chiave di sessione resta nel link dell'addon e la lista viene riletta a ogni aggiornamento (ogni 6 ore): gli addon che installi dopo entrano da soli. Il link in questo caso dà accesso al tuo account, quindi non va condiviso; per revocare la chiave fai logout da Stremio su tutti i dispositivi.
 
