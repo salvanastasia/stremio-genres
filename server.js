@@ -37,6 +37,8 @@ function parseConfig(str) {
     enrichLimit: Math.min(Math.max(parseInt(raw.enrichLimit, 10) || 300, 0), 1500),
     useGenreFilters: raw.useGenreFilters !== false,
     browse: raw.browse !== false,
+    itDescription: raw.itDescription !== false,
+    itTitle: raw.itTitle === true,
     authKey,
   };
 }

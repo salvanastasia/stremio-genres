@@ -42,6 +42,16 @@ Va bene qualsiasi host Node con https, per esempio:
 
 Poi apri `https://TUO-DOMINIO/configure`, scegli addon e categorie, premi **Installa in Stremio** dal telefono o dal PC: con lo stesso account, l'addon compare in automatico sulla app TV. Le righe appaiono nella Home; puoi riordinarle o nasconderle da Impostazioni › Addon.
 
+## Trama e titoli in italiano
+
+Le descrizioni di Cinemeta sono in inglese. Per averle in italiano l'addon usa TMDB:
+
+1. Crea un account gratuito su https://www.themoviedb.org e vai in *Impostazioni › API* per ottenere la chiave (va bene sia la "Chiave API" v3 sia il "Token di accesso in lettura").
+2. Su Railway apri il servizio › **Variables** › aggiungi `TMDB_API_KEY` con la chiave. Railway riavvia da solo.
+3. Nella pagina di configurazione lascia attiva "Trama in italiano"; facoltativo "Titoli in italiano".
+
+Senza la chiave l'addon funziona normalmente con i testi originali. In `/status` il campo `italian` indica quanti titoli sono stati tradotti.
+
 Variabile opzionale: `DEFAULT_ADDONS` (link separati da virgola proposti nella pagina di configurazione).
 
 ## Endpoint

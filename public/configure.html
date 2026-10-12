@@ -114,6 +114,10 @@
     <label class="chip"><input type="checkbox" id="useGenreFilters" checked> Usa anche i filtri per genere offerti dagli addon (più titoli per categoria)</label>
     <p></p>
     <label class="chip"><input type="checkbox" id="browse" checked> Aggiungi “Per genere” in Scopri</label>
+    <p></p>
+    <label class="chip"><input type="checkbox" id="itDescription" checked> Trama in italiano (da TMDB)</label>
+    <p></p>
+    <label class="chip"><input type="checkbox" id="itTitle"> Titoli in italiano (es. “Il padrino” invece di “The Godfather”)</label>
   </section>
 
   <section>
@@ -161,7 +165,8 @@ $('addons').value = (saved.addons || DEFAULT_ADDONS).join('\n');
 if (saved.addons && !saved.authKey) $('manual').open = true;
 if (saved.sort) $('sort').value = saved.sort;
 if (saved.pages) $('pages').value = saved.pages;
-for (const k of ['enrich', 'useGenreFilters', 'browse']) if (saved[k] === false) $(k).checked = false;
+for (const k of ['enrich', 'useGenreFilters', 'browse', 'itDescription']) if (saved[k] === false) $(k).checked = false;
+if (saved.itTitle) $('itTitle').checked = true;
 if (authKey) { $('autosync').checked = true; $('importMsg').className = 'msg ok'; $('importMsg').textContent = 'Sincronizzazione automatica attiva.'; }
 
 function applyImport(data) {
@@ -255,6 +260,8 @@ $('go').onclick = () => {
     enrich: $('enrich').checked,
     useGenreFilters: $('useGenreFilters').checked,
     browse: $('browse').checked,
+    itDescription: $('itDescription').checked,
+    itTitle: $('itTitle').checked,
   };
   if (sync) cfg.authKey = authKey;
   if (!cfg.movie.length && !cfg.series.length) { alert('Scegli almeno una categoria.'); return; }

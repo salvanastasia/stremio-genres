@@ -49,11 +49,19 @@ function fakeAddon(port, manifest, catalogFn) {
   process.env.STREMIO_API = 'http://127.0.0.1:7103/api';
   process.env.STREMIO_LINK_API = 'http://127.0.0.1:7103/link/v2';
   let reads = 0;
+  process.env.TMDB_API = 'http://127.0.0.1:7103/tmdb';
+  process.env.TMDB_API_KEY = 'chiave-test';
   const api = await new Promise(r => {
     const s = http.createServer((req, res) => {
       let d = ''; req.on('data', c => d += c); req.on('end', () => {
         const body = JSON.parse(d || '{}');
         res.setHeader('content-type', 'application/json');
+        if (req.url.startsWith('/tmdb/find/tt1000?')) {
+          assert(req.url.includes('language=it-IT') && req.url.includes('api_key=chiave-test'));
+          return res.end(JSON.stringify({ movie_results: [{ title: 'Film Zero', overview: 'Una trama in italiano.' }], tv_results: [] }));
+        }
+        if (req.url.startsWith('/tmdb/find/tt1001?')) return res.end(JSON.stringify({ movie_results: [{ title: 'Film Uno', overview: '' }] }));
+        if (req.url.startsWith('/tmdb/')) return res.end(JSON.stringify({ movie_results: [], tv_results: [] }));
         if (req.url === '/link/v2/create?type=Create') return res.end(JSON.stringify({ result: { code: 'ABC12', link: 'https://www.stremio.com/link?code=ABC12', qrcode: 'iVBORw0KGgo=' } }));
         if (req.url === '/link/v2/read?type=Read&code=ABC12') {
           reads++;
@@ -101,6 +109,10 @@ function fakeAddon(port, manifest, catalogFn) {
   assert.equal(ids[0], 'tt1000', 'titolo presente in 2 addon in cima (popolari)');
   assert.equal(ids.length, 51, '50 SF da A + 1 solo da B');
 
+  const zero = sf.metas.find(m => m.id === 'tt1000');
+  assert.equal(zero.description, 'Una trama in italiano.', 'trama tradotta');
+  assert.equal(zero.name.startsWith('Film 0'), true, 'titolo invariato senza opzione');
+
   const comm = await get(`/${cfg}/catalog/movie/gen.movie.commedia.json`);
   assert.equal(comm.metas.length, 51);
   const p2 = await get(`/${cfg}/catalog/movie/gen.movie.horror/skip=100.json`);
@@ -128,6 +140,16 @@ function fakeAddon(port, manifest, catalogFn) {
   const ok = await post('/import', { email: 'io@test.it', password: 'ok' });
   assert.equal(ok.data.authKey, 'chiave-valida-123');
   assert.deepEqual(ok.data.addons.map(x => x.name), ['A'], 'esclusi sé stesso e addon senza cataloghi');
+
+  // Titoli in italiano attivi; trama vuota su TMDB -> resta quella originale
+  const cfgIt = Buffer.from(JSON.stringify({ addons: ['http://127.0.0.1:7101/manifest.json'], movie: ['fantascienza', 'commedia'], series: [], enrich: false, itTitle: true })).toString('base64url');
+  const itSf = await get(`/${cfgIt}/catalog/movie/gen.movie.fantascienza.json`);
+  assert.equal(itSf.metas.find(m => m.id === 'tt1000').name, 'Film Zero');
+  const itCo = await get(`/${cfgIt}/catalog/movie/gen.movie.commedia.json`);
+  const uno = itCo.metas.find(m => m.id === 'tt1001');
+  assert.equal(uno.name, 'Film Uno'); assert.equal(uno.description, undefined);
+  const itSt = await get(`/${cfgIt}/status`);
+  assert.equal(itSt.italian.translated, 2);
 
   // Accesso tramite pagina Stremio (Facebook): prima in attesa, poi chiave + addon
   const lc = await get('/link/create');
