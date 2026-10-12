@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Generi – Configura</title>
+<style>
+  :root { --bg:#0f0d1a; --card:#1b1830; --line:#2e2a4a; --txt:#ecebf5; --mut:#a09cbf; --acc:#7b5cff; --acc2:#9f88ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:860px; margin:0 auto; padding:28px 16px 80px; }
+  h1 { font-size:28px; margin:0 0 4px; }
+  .sub { color:var(--mut); margin:0 0 24px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; margin-bottom:18px; }
+  h2 { font-size:18px; margin:0 0 6px; }
+  .hint { color:var(--mut); font-size:14px; margin:0 0 14px; }
+  textarea, select, input[type=number] { width:100%; background:#120f22; color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:12px; font:inherit; }
+  textarea { min-height:130px; resize:vertical; font-family:ui-monospace, monospace; font-size:14px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:8px; }
+  label.chip { display:flex; gap:10px; align-items:center; padding:10px 12px; border:1px solid var(--line); border-radius:10px; cursor:pointer; user-select:none; }
+  label.chip:has(input:checked) { border-color:var(--acc); background:rgba(123,92,255,.14); }
+  input[type=checkbox] { width:20px; height:20px; accent-color:var(--acc); }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .tools { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+  button, a.btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; background:var(--acc); color:#fff; border:0; border-radius:10px; padding:14px 20px; font:600 16px/1 inherit; text-decoration:none; cursor:pointer; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--txt); padding:8px 12px; font-size:14px; }
+  button:focus-visible, a.btn:focus-visible, label.chip:focus-within, textarea:focus, select:focus, input:focus { outline:3px solid var(--acc2); outline-offset:2px; }
+  .out { display:none; }
+  .out.show { display:block; }
+  .link { word-break:break-all; background:#120f22; border:1px solid var(--line); border-radius:10px; padding:12px; font-family:ui-monospace,monospace; font-size:13px; margin:10px 0; }
+  .actions { display:flex; gap:10px; flex-wrap:wrap; }
+  @media (max-width:600px){ .row { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>🎞️ Generi – Organizzatore</h1>
+  <p class="sub">Raccoglie i titoli dai cataloghi dei tuoi addon e li riordina in righe per categoria: <b>Film › Fantascienza</b>, <b>Serie › Thriller</b> e così via.</p>
+
+  <section>
+    <h2>1. Addon sorgente</h2>
+    <p class="hint">Incolla un link manifest per riga (https://…/manifest.json oppure stremio://…). Su Stremio lo trovi in <i>Addon › ⋯ › Copia link</i>. Funzionano gli addon che offrono <b>cataloghi</b> (Cinemeta, TMDB, MDBList, Trakt, cataloghi di streaming…); gli addon che danno solo stream non hanno titoli da elencare.</p>
+    <textarea id="addons" spellcheck="false"></textarea>
+  </section>
+
+  <section>
+    <h2>2. Categorie Film</h2>
+    <div class="tools"><button class="ghost" data-all="movie">Tutte</button><button class="ghost" data-none="movie">Nessuna</button></div>
+    <div class="grid" id="g-movie"></div>
+  </section>
+
+  <section>
+    <h2>3. Categorie Serie</h2>
+    <div class="tools"><button class="ghost" data-all="series">Tutte</button><button class="ghost" data-none="series">Nessuna</button></div>
+    <div class="grid" id="g-series"></div>
+  </section>
+
+  <section>
+    <h2>4. Opzioni</h2>
+    <div class="row">
+      <div>
+        <p class="hint">Ordinamento dei titoli in ogni riga</p>
+        <select id="sort">
+          <option value="popular">Più popolari (presenti in più cataloghi)</option>
+          <option value="rating">Voto IMDb</option>
+          <option value="year">Più recenti</option>
+          <option value="name">Alfabetico</option>
+        </select>
+      </div>
+      <div>
+        <p class="hint">Pagine lette da ogni catalogo (100 titoli l'una)</p>
+        <input type="number" id="pages" min="1" max="10" value="3">
+      </div>
+    </div>
+    <p></p>
+    <label class="chip"><input type="checkbox" id="enrich" checked> Recupera il genere da Cinemeta per i titoli che ne sono privi</label>
+    <p></p>
+    <label class="chip"><input type="checkbox" id="useGenreFilters" checked> Usa anche i filtri per genere offerti dagli addon (più titoli per categoria)</label>
+    <p></p>
+    <label class="chip"><input type="checkbox" id="browse" checked> Aggiungi “Film per genere” / “Serie per genere” in Scopri</label>
+  </section>
+
+  <section>
+    <button id="go" style="width:100%">Genera link di installazione</button>
+    <div class="out" id="out">
+      <p class="hint" style="margin-top:16px">Installa su telefono o PC con lo stesso account Stremio della TV: l'addon si sincronizza da solo sulla app TV.</p>
+      <div class="actions">
+        <a class="btn" id="install" href="#">Installa in Stremio</a>
+        <button class="ghost" id="copy">Copia link</button>
+      </div>
+      <div class="link" id="link"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const GENRES = __GENRES__;
+const ORDER = __ORDER__;
+const DEFAULTS = __DEFAULTS__;
+const DEFAULT_ADDONS = __DEFAULT_ADDONS__;
+
+const $ = id => document.getElementById(id);
+
+function readSaved() {
+  const seg = location.pathname.split('/').filter(Boolean);
+  if (seg.length >= 2 && seg[seg.length - 1] === 'configure') {
+    try {
+      const b = seg[seg.length - 2].replace(/-/g, '+').replace(/_/g, '/');
+      return JSON.parse(decodeURIComponent(escape(atob(b))));
+    } catch (e) {}
+  }
+  return {};
+}
+const saved = readSaved();
+
+function chips(type) {
+  const sel = new Set(saved[type] || DEFAULTS[type]);
+  $('g-' + type).innerHTML = ORDER[type].map(k =>
+    `<label class="chip"><input type="checkbox" name="${type}" value="${k}" ${sel.has(k) ? 'checked' : ''}> ${GENRES[k]}</label>`).join('');
+}
+chips('movie'); chips('series');
+
+$('addons').value = (saved.addons || DEFAULT_ADDONS).join('\n');
+if (saved.sort) $('sort').value = saved.sort;
+if (saved.pages) $('pages').value = saved.pages;
+for (const k of ['enrich', 'useGenreFilters', 'browse']) if (saved[k] === false) $(k).checked = false;
+
+document.querySelectorAll('[data-all]').forEach(b => b.onclick = () =>
+  document.querySelectorAll(`input[name=${b.dataset.all}]`).forEach(i => i.checked = true));
+document.querySelectorAll('[data-none]').forEach(b => b.onclick = () =>
+  document.querySelectorAll(`input[name=${b.dataset.none}]`).forEach(i => i.checked = false));
+
+function b64url(str) {
+  return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+$('go').onclick = () => {
+  const addons = $('addons').value.split(/\s+/).map(s => s.trim()).filter(s => /^(https?|stremio):\/\//i.test(s));
+  if (!addons.length) { alert('Inserisci almeno un link manifest.'); return; }
+  const cfg = {
+    addons,
+    movie: [...document.querySelectorAll('input[name=movie]:checked')].map(i => i.value),
+    series: [...document.querySelectorAll('input[name=series]:checked')].map(i => i.value),
+    sort: $('sort').value,
+    pages: parseInt($('pages').value, 10) || 3,
+    enrich: $('enrich').checked,
+    useGenreFilters: $('useGenreFilters').checked,
+    browse: $('browse').checked,
+  };
+  if (!cfg.movie.length && !cfg.series.length) { alert('Scegli almeno una categoria.'); return; }
+  const https = `${location.origin}/${b64url(JSON.stringify(cfg))}/manifest.json`;
+  const stremio = https.replace(/^https?:\/\//, 'stremio://');
+  $('install').href = stremio;
+  $('link').textContent = https;
+  $('out').classList.add('show');
+  $('install').focus();
+};
+
+$('copy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('link').textContent); $('copy').textContent = 'Copiato ✓'; }
+  catch (e) { prompt('Copia il link:', $('link').textContent); }
+};
+</script>
+</body>
+</html>
