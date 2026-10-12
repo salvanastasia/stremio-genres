@@ -2,9 +2,9 @@
 
 Raccoglie i titoli dai **cataloghi di qualsiasi addon** che indichi e li riorganizza in righe per categoria sulla Home di Stremio (anche app TV):
 
-- Film › Azione, Film › Commedia, Film › Fantascienza, Film › Horror, Film › Thriller…
-- Serie › Fantascienza, Serie › Crime, Serie › Reality…
-- In **Scopri** compaiono anche “Film per genere” e “Serie per genere” con il filtro genere.
+- Azione - Film, Commedia - Film, Fantascienza - Film, Horror - Film, Thriller - Film…
+- Fantascienza - Serie, Crime - Serie, Reality - Serie… (il " - Film" / " - Serie" finale lo aggiunge Stremio)
+- In **Scopri** compaiono anche “Per genere” con il filtro genere.
 
 ## Come funziona
 

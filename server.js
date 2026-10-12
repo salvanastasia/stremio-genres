@@ -46,7 +46,7 @@ function cfgKey(cfg) {
 
 function buildManifest(cfg, configured) {
   const catalogs = [];
-  const typeLabel = { movie: 'Film', series: 'Serie' };
+  // Stremio aggiunge già il tipo in coda ("Animazione - Film"), quindi qui solo il genere.
 
   for (const type of ['movie', 'series']) {
     // Una riga per genere sulla Home (Board)
@@ -55,7 +55,7 @@ function buildManifest(cfg, configured) {
       catalogs.push({
         type,
         id: `gen.${type}.${k}`,
-        name: `${typeLabel[type]} › ${GENRES[k].label}`,
+        name: GENRES[k].label,
         extra: [{ name: 'skip', isRequired: false }],
       });
     }
@@ -64,7 +64,7 @@ function buildManifest(cfg, configured) {
       catalogs.push({
         type,
         id: `gen.${type}.all`,
-        name: `${typeLabel[type]} per genere`,
+        name: 'Per genere',
         extra: [
           { name: 'genre', isRequired: true, options: cfg[type].map(k => GENRES[k].label) },
           { name: 'skip', isRequired: false },

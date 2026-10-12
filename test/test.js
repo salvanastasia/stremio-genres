@@ -60,7 +60,8 @@ function fakeAddon(port, manifest, catalogFn) {
   assert.equal(man.behaviorHints.configurationRequired, false);
   const names = man.catalogs.map(c => c.name);
   console.log('Cataloghi:', names.join(' | '));
-  assert(names.includes('Film › Fantascienza') && names.includes('Serie › Fantasy') && names.includes('Film per genere'));
+  assert(names.includes('Fantascienza') && names.includes('Fantasy') && names.includes('Per genere'));
+  assert(!names.some(n => /^(Film|Serie)\b/.test(n)), 'niente prefisso Film/Serie');
 
   const sf = await get(`/${cfg}/catalog/movie/gen.movie.fantascienza.json`);
   const ids = sf.metas.map(m => m.id);
