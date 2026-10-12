@@ -45,6 +45,29 @@ function fakeAddon(port, manifest, catalogFn) {
     return [];
   });
 
+  // Finta API account Stremio
+  process.env.STREMIO_API = 'http://127.0.0.1:7103/api';
+  const api = await new Promise(r => {
+    const s = http.createServer((req, res) => {
+      let d = ''; req.on('data', c => d += c); req.on('end', () => {
+        const body = JSON.parse(d || '{}');
+        res.setHeader('content-type', 'application/json');
+        if (req.url === '/api/login') {
+          if (body.email === 'io@test.it' && body.password === 'ok') return res.end(JSON.stringify({ result: { authKey: 'chiave-valida-123' } }));
+          return res.end(JSON.stringify({ error: { message: 'Password errata' } }));
+        }
+        if (req.url === '/api/addonCollectionGet' && body.authKey === 'chiave-valida-123') {
+          return res.end(JSON.stringify({ result: { addons: [
+            { transportUrl: 'http://127.0.0.1:7101/manifest.json', manifest: { id: 'a', name: 'A', catalogs: [{ type: 'movie', id: 'top' }] } },
+            { transportUrl: 'http://127.0.0.1:7100/xyz/manifest.json', manifest: { id: 'org.generi.organizzatore', name: 'Generi', catalogs: [{ type: 'movie', id: 'x' }] } },
+            { transportUrl: 'http://stream.only/manifest.json', manifest: { id: 's', name: 'Solo stream', catalogs: [] } },
+          ] } }));
+        }
+        res.end(JSON.stringify({ error: { message: 'Sessione non valida' } }));
+      });
+    }).listen(7103, () => r(s));
+  });
+
   const { server } = require('../server');
   await new Promise(r => server.listen(7100, r));
   const get = async p => (await fetch('http://127.0.0.1:7100' + p)).json();
@@ -90,6 +113,21 @@ function fakeAddon(port, manifest, catalogFn) {
   const html = await (await fetch('http://127.0.0.1:7100/configure')).text();
   assert(html.includes('Fantascienza') && !html.includes('__GENRES__'));
 
+  // Importazione dall'account
+  const post = async (p, body) => { const r = await fetch('http://127.0.0.1:7100' + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); return { status: r.status, data: await r.json() }; };
+  const bad = await post('/import', { email: 'io@test.it', password: 'no' });
+  assert.equal(bad.status, 400); assert.equal(bad.data.error, 'Password errata');
+  const ok = await post('/import', { email: 'io@test.it', password: 'ok' });
+  assert.equal(ok.data.authKey, 'chiave-valida-123');
+  assert.deepEqual(ok.data.addons.map(x => x.name), ['A'], 'esclusi sé stesso e addon senza cataloghi');
+
+  // Sincronizzazione automatica: nessun link manuale, solo authKey
+  const cfgSync = Buffer.from(JSON.stringify({ authKey: 'chiave-valida-123', movie: ['commedia'], series: [], enrich: false })).toString('base64url');
+  const syncCat = await get(`/${cfgSync}/catalog/movie/gen.movie.commedia.json`);
+  assert.equal(syncCat.metas.length, 50, 'titoli presi dagli addon installati');
+  const syncSt = await get(`/${cfgSync}/status`);
+  assert.deepEqual(syncSt.sourceNames, ['A']);
+
   console.log('✅ Tutti i test superati');
-  server.close(); a.close(); b.close();
+  server.close(); a.close(); b.close(); api.close();
 })().catch(e => { console.error('❌', e); process.exit(1); });

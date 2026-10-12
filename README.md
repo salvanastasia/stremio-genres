@@ -15,7 +15,13 @@ Raccoglie i titoli dai **cataloghi di qualsiasi addon** che indichi e li riorgan
 5. Unisce i duplicati tra addon diversi; un titolo presente in più cataloghi sale in cima (ordinamento “popolari”).
 6. Tiene l'indice in cache 6 ore (ricostruito in background).
 
-> Nota: Stremio non permette a un addon di leggere quali addon hai installato, per questo i link sorgente si incollano nella pagina di configurazione. Funzionano gli addon che hanno **cataloghi** (Cinemeta, TMDB, MDBList, Trakt, cataloghi streaming ecc.); quelli che forniscono solo stream non hanno elenchi di titoli.
+## Importazione automatica degli addon
+
+Nella pagina di configurazione puoi accedere con il tuo account Stremio: l'addon legge la lista degli addon installati e usa quelli con cataloghi (escludendo sé stesso e gli addon di soli stream). Email e password servono solo a ottenere la chiave di sessione e non vengono salvate.
+
+Con **Sincronizzazione automatica** la chiave di sessione resta nel link dell'addon e la lista viene riletta a ogni aggiornamento (ogni 6 ore): gli addon che installi dopo entrano da soli. Il link in questo caso dà accesso al tuo account, quindi non va condiviso; per revocare la chiave fai logout da Stremio su tutti i dispositivi.
+
+> In alternativa puoi incollare a mano i link manifest. Funzionano gli addon che hanno **cataloghi** (Cinemeta, TMDB, MDBList, Trakt, cataloghi streaming ecc.); quelli che forniscono solo stream non hanno elenchi di titoli.
 
 ## Avvio locale
 

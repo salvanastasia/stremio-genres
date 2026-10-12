@@ -6,6 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { GENRES, ORDER, DEFAULTS, LABEL_TO_KEY, norm } = require('./lib/genres');
 const { getIndex, PAGE } = require('./lib/aggregator');
+const account = require('./lib/stremio-account');
 const pkg = require('./package.json');
 
 const PORT = process.env.PORT || 7000;
@@ -23,7 +24,8 @@ function parseConfig(str) {
     catch { try { raw = JSON.parse(decodeURIComponent(str)); } catch { raw = {}; } }
   }
   const pick = (list, type) => (Array.isArray(list) ? list : DEFAULTS[type]).filter(k => GENRES[k] && ORDER[type].includes(k));
-  const addons = (Array.isArray(raw.addons) && raw.addons.length ? raw.addons : DEFAULT_ADDONS)
+  const authKey = typeof raw.authKey === 'string' && /^[\w.-]{8,200}$/.test(raw.authKey) ? raw.authKey : null;
+  const addons = (Array.isArray(raw.addons) && raw.addons.length ? raw.addons : authKey ? [] : DEFAULT_ADDONS)
     .filter(u => typeof u === 'string' && /^(https?|stremio):\/\//i.test(u)).slice(0, 25);
   return {
     addons,
@@ -35,6 +37,7 @@ function parseConfig(str) {
     enrichLimit: Math.min(Math.max(parseInt(raw.enrichLimit, 10) || 300, 0), 1500),
     useGenreFilters: raw.useGenreFilters !== false,
     browse: raw.browse !== false,
+    authKey,
   };
 }
 
@@ -122,9 +125,19 @@ function send(res, status, body, type = 'application/json; charset=utf-8', maxAg
     'content-type': type,
     'access-control-allow-origin': '*',
     'access-control-allow-headers': '*',
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
     'cache-control': maxAge ? `public, max-age=${maxAge}, stale-while-revalidate=86400` : 'no-cache',
   });
   res.end(typeof body === 'string' ? body : JSON.stringify(body));
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let d = '';
+    req.on('data', c => { d += c; if (d.length > 1e5) req.destroy(); });
+    req.on('end', () => resolve(d));
+    req.on('error', reject);
+  });
 }
 
 const configureHtml = fs.readFileSync(path.join(__dirname, 'public', 'configure.html'), 'utf8')
@@ -136,6 +149,23 @@ const configureHtml = fs.readFileSync(path.join(__dirname, 'public', 'configure.
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 204, '');
   const url = new URL(req.url, 'http://x');
+
+  // Importa gli addon dall'account Stremio. Le credenziali non vengono salvate né registrate.
+  if (req.method === 'POST' && url.pathname === '/import') {
+    try {
+      const body = JSON.parse(await readBody(req) || '{}');
+      let authKey = typeof body.authKey === 'string' ? body.authKey.trim() : '';
+      if (!authKey) {
+        if (!body.email || !body.password) return send(res, 400, { error: 'Inserisci email e password' });
+        authKey = await account.login(String(body.email), String(body.password));
+      }
+      const addons = await account.installedAddons(authKey);
+      return send(res, 200, { authKey, addons });
+    } catch (e) {
+      return send(res, 400, { error: e.message || 'Importazione non riuscita' });
+    }
+  }
+
   const parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
 
   try {
