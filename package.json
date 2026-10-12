@@ -1,6 +1,6 @@
 {
   "name": "stremio-genres",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Addon Stremio che riorganizza i titoli di tutti gli addon in categorie per genere (Film › Fantascienza, Serie › Thriller…)",
   "main": "server.js",
   "scripts": {

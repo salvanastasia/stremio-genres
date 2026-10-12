@@ -20,6 +20,8 @@
   label.chip { display:flex; gap:10px; align-items:center; padding:10px 12px; border:1px solid var(--line); border-radius:10px; cursor:pointer; user-select:none; }
   label.chip:has(input:checked) { border-color:var(--acc); background:rgba(123,92,255,.14); }
   input[type=email], input[type=password] { width:100%; background:#120f22; color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:12px; font:inherit; margin-bottom:10px; }
+  summary { cursor:pointer; font-weight:600; font-size:17px; padding:4px 0; }
+  summary:focus-visible { outline:3px solid var(--acc2); outline-offset:2px; border-radius:6px; }
   .msg { font-size:14px; margin:10px 0 0; }
   .msg.err { color:#ff8a8a; }
   .msg.ok { color:#8fe3a8; }
@@ -55,9 +57,11 @@
   </section>
 
   <section>
-    <h2>Addon sorgente</h2>
-    <p class="hint">Incolla un link manifest per riga (https://…/manifest.json oppure stremio://…). Su Stremio lo trovi in <i>Addon › ⋯ › Copia link</i>. Funzionano gli addon che offrono <b>cataloghi</b> (Cinemeta, TMDB, MDBList, Trakt, cataloghi di streaming…); gli addon che danno solo stream non hanno titoli da elencare.</p>
-    <textarea id="addons" spellcheck="false"></textarea>
+    <details id="manual">
+      <summary>Aggiungi link a mano (facoltativo)</summary>
+      <p class="hint" style="margin-top:12px">Non serve se hai importato i tuoi addon qui sopra. Usalo solo per aggiungere addon che non hai installato, incollando un link manifest per riga (https://…/manifest.json oppure stremio://…).</p>
+      <textarea id="addons" spellcheck="false"></textarea>
+    </details>
   </section>
 
   <section>
@@ -139,6 +143,7 @@ function chips(type) {
 chips('movie'); chips('series');
 
 $('addons').value = (saved.addons || DEFAULT_ADDONS).join('\n');
+if (saved.addons && !saved.authKey) $('manual').open = true;
 if (saved.sort) $('sort').value = saved.sort;
 if (saved.pages) $('pages').value = saved.pages;
 for (const k of ['enrich', 'useGenreFilters', 'browse']) if (saved[k] === false) $(k).checked = false;
