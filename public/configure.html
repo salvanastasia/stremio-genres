@@ -30,6 +30,7 @@
   .row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
   .tools { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
   button, a.btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; background:var(--acc); color:#fff; border:0; border-radius:10px; padding:14px 20px; font:600 16px/1 inherit; text-decoration:none; cursor:pointer; }
+  a.btn.ghost { background:transparent; border:1px solid var(--line); color:var(--txt); }
   button.ghost { background:transparent; border:1px solid var(--line); color:var(--txt); padding:8px 12px; font-size:14px; }
   button:focus-visible, a.btn:focus-visible, label.chip:focus-within, textarea:focus, select:focus, input:focus { outline:3px solid var(--acc2); outline-offset:2px; }
   .out { display:none; }
@@ -117,15 +118,24 @@
     <p></p>
     <label class="chip"><input type="checkbox" id="itDescription" checked> Trama in italiano (da TMDB)</label>
     <p></p>
-    <label class="chip"><input type="checkbox" id="itTitle"> Titoli in italiano (es. “Il padrino” invece di “The Godfather”)</label>
+    <label class="chip"><input type="checkbox" id="itTitle" checked> Titoli in italiano, anche degli episodi (es. “Il padrino” invece di “The Godfather”)</label>
+    <p></p>
+    <label class="chip"><input type="checkbox" id="itPoster" checked> Poster italiani quando disponibili</label>
+    <p></p>
+    <label class="chip"><input type="checkbox" id="meta" checked> Schede dei titoli in italiano (trama, episodi, voto) al posto di Cinemeta</label>
   </section>
 
   <section>
     <button id="go" style="width:100%">Genera link di installazione</button>
     <div class="out" id="out">
-      <p class="hint" style="margin-top:16px">Installa su telefono o PC con lo stesso account Stremio della TV: l'addon si sincronizza da solo sulla app TV.</p>
+      <p class="hint" style="margin-top:16px"><b>Consigliato:</b> installa l'addon in cima alla lista, sopra Cinemeta, così Stremio usa le schede in italiano. Arriva da solo anche sulla app TV.</p>
       <div class="actions">
-        <a class="btn" id="install" href="#">Installa in Stremio</a>
+        <button id="installTop">Installa in cima (sopra Cinemeta)</button>
+      </div>
+      <p class="msg" id="topMsg"></p>
+      <p class="hint" style="margin-top:16px">Oppure installa nel modo classico (l'addon finisce in fondo alla lista):</p>
+      <div class="actions">
+        <a class="btn ghost" id="install" href="#" style="padding:10px 14px;font-size:14px">Installa in Stremio</a>
         <button class="ghost" id="copy">Copia link</button>
       </div>
       <div class="link" id="link"></div>
@@ -166,7 +176,7 @@ if (saved.addons && !saved.authKey) $('manual').open = true;
 if (saved.sort) $('sort').value = saved.sort;
 if (saved.pages) $('pages').value = saved.pages;
 for (const k of ['enrich', 'useGenreFilters', 'browse', 'itDescription']) if (saved[k] === false) $(k).checked = false;
-if (saved.itTitle) $('itTitle').checked = true;
+for (const k of ['itTitle', 'itPoster', 'meta']) if (saved[k] === false) $(k).checked = false;
 if (authKey) { $('autosync').checked = true; $('importMsg').className = 'msg ok'; $('importMsg').textContent = 'Sincronizzazione automatica attiva.'; }
 
 function applyImport(data) {
@@ -262,6 +272,8 @@ $('go').onclick = () => {
     browse: $('browse').checked,
     itDescription: $('itDescription').checked,
     itTitle: $('itTitle').checked,
+    itPoster: $('itPoster').checked,
+    meta: $('meta').checked,
   };
   if (sync) cfg.authKey = authKey;
   if (!cfg.movie.length && !cfg.series.length) { alert('Scegli almeno una categoria.'); return; }
@@ -270,7 +282,30 @@ $('go').onclick = () => {
   $('install').href = stremio;
   $('link').textContent = https;
   $('out').classList.add('show');
-  $('install').focus();
+  $('topMsg').className = 'msg';
+  $('topMsg').textContent = authKey ? '' : 'Per usarlo premi prima “Accedi con Stremio” in alto.';
+  $('installTop').focus();
+};
+
+$('installTop').onclick = async () => {
+  const msg = $('topMsg');
+  if (!authKey) { msg.className = 'msg err'; msg.textContent = 'Premi prima “Accedi con Stremio” in alto.'; return; }
+  msg.className = 'msg'; msg.textContent = 'Installo…';
+  $('installTop').disabled = true;
+  try {
+    const r = await fetch('/install-top', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ authKey, manifestUrl: $('link').textContent }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Installazione non riuscita');
+    msg.className = 'msg ok';
+    msg.textContent = '✓ Installato in prima posizione. Ordine attuale: ' + d.order.join(' › ') + '. Riavvia Stremio sulla TV.';
+  } catch (e) {
+    msg.className = 'msg err'; msg.textContent = e.message;
+  } finally {
+    $('installTop').disabled = false;
+  }
 };
 
 $('copy').onclick = async () => {

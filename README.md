@@ -50,6 +50,8 @@ Le descrizioni di Cinemeta sono in inglese. Per averle in italiano l'addon usa T
 2. Su Railway apri il servizio › **Variables** › aggiungi `TMDB_API_KEY` con la chiave. Railway riavvia da solo.
 3. Nella pagina di configurazione lascia attiva "Trama in italiano"; facoltativo "Titoli in italiano".
 
+Con la chiave l'addon fornisce anche la **scheda completa del titolo** in italiano (titolo, trama, poster, logo, titoli e trame degli episodi) partendo da Cinemeta, così gli addon di stream continuano a funzionare. Perché Stremio la usi, l'addon deve stare **sopra Cinemeta**: nella pagina di configurazione, dopo "Accedi con Stremio", usa **Installa in cima (sopra Cinemeta)**.
+
 Senza la chiave l'addon funziona normalmente con i testi originali. In `/status` il campo `italian` indica quanti titoli sono stati tradotti.
 
 Variabile opzionale: `DEFAULT_ADDONS` (link separati da virgola proposti nella pagina di configurazione).

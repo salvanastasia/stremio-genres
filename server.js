@@ -7,6 +7,8 @@ const crypto = require('crypto');
 const { GENRES, ORDER, DEFAULTS, LABEL_TO_KEY, norm } = require('./lib/genres');
 const { getIndex, PAGE } = require('./lib/aggregator');
 const account = require('./lib/stremio-account');
+const tmdb = require('./lib/tmdb');
+const { getMeta } = require('./lib/meta');
 const pkg = require('./package.json');
 
 const PORT = process.env.PORT || 7000;
@@ -38,7 +40,9 @@ function parseConfig(str) {
     useGenreFilters: raw.useGenreFilters !== false,
     browse: raw.browse !== false,
     itDescription: raw.itDescription !== false,
-    itTitle: raw.itTitle === true,
+    itTitle: raw.itTitle !== false,
+    itPoster: raw.itPoster !== false,
+    meta: raw.meta !== false,
     authKey,
   };
 }
@@ -84,9 +88,11 @@ function buildManifest(cfg, configured) {
     name: 'Generi – Organizzatore',
     description: 'Riorganizza i titoli di tutti i tuoi addon in categorie: Film › Fantascienza, Commedia, Thriller, Horror… e lo stesso per le Serie.',
     logo: 'https://dl.strem.io/addon-logo.png',
-    resources: ['catalog'],
+    // Con TMDB attivo l'addon fornisce anche le schede dei titoli in italiano
+    resources: cfg.meta && tmdb.enabled()
+      ? ['catalog', { name: 'meta', types: ['movie', 'series'], idPrefixes: ['tt', 'tmdb:'] }]
+      : ['catalog'],
     types: ['movie', 'series'],
-    idPrefixes: [],
     catalogs,
     behaviorHints: { configurable: true, configurationRequired: !configured },
   };
@@ -186,6 +192,24 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // Installa l'addon in cima alla lista dell'account (sopra Cinemeta)
+  if (req.method === 'POST' && url.pathname === '/install-top') {
+    try {
+      const body = JSON.parse(await readBody(req) || '{}');
+      const authKey = typeof body.authKey === 'string' ? body.authKey.trim() : '';
+      if (!authKey) return send(res, 400, { error: 'Prima premi “Accedi con Stremio”' });
+      let target;
+      try { target = new URL(String(body.manifestUrl || '')); } catch { return send(res, 400, { error: 'Link non valido' }); }
+      const m = /^\/([^/]+)\/manifest\.json$/.exec(target.pathname);
+      if (!/^https?:$/.test(target.protocol) || !m) return send(res, 400, { error: 'Link non valido' });
+      const manifest = buildManifest(parseConfig(m[1]), true);
+      const order = await account.installOnTop(authKey, target.href, manifest);
+      return send(res, 200, { ok: true, order });
+    } catch (e) {
+      return send(res, 400, { error: e.message || 'Installazione non riuscita' });
+    }
+  }
+
   const parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
 
   try {
@@ -196,7 +220,7 @@ const server = http.createServer(async (req, res) => {
 
     // config opzionale come primo segmento
     let cfgStr = '';
-    if (parts[0] !== 'manifest.json' && parts[0] !== 'catalog' && parts[0] !== 'status') cfgStr = parts.shift();
+    if (!['manifest.json', 'catalog', 'meta', 'status'].includes(parts[0])) cfgStr = parts.shift();
     const cfg = parseConfig(cfgStr);
 
     if (parts[0] === 'manifest.json') return send(res, 200, buildManifest(cfg, !!cfgStr), undefined, 3600);
@@ -215,6 +239,14 @@ const server = http.createServer(async (req, res) => {
       if (!parts[3]) id = id.replace(/\.json$/, ''); else extraStr = extraStr.replace(/\.json$/, '');
       const body = await handleCatalog(cfg, type, id, parseExtra(extraStr));
       return send(res, 200, body, undefined, 3600);
+    }
+
+    if (parts[0] === 'meta' && parts.length >= 3) {
+      const type = parts[1];
+      const id = parts[2].replace(/\.json$/, '');
+      const meta = cfg.meta ? await getMeta(cfg, type, id) : null;
+      if (!meta) return send(res, 404, { meta: null });
+      return send(res, 200, { meta }, undefined, 12 * 3600);
     }
 
     send(res, 404, { err: 'not found' });

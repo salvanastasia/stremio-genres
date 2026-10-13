@@ -51,6 +51,9 @@ function fakeAddon(port, manifest, catalogFn) {
   let reads = 0;
   process.env.TMDB_API = 'http://127.0.0.1:7103/tmdb';
   process.env.TMDB_API_KEY = 'chiave-test';
+  process.env.CINEMETA_URL = 'http://127.0.0.1:7103/cinemeta';
+  let collectionSet = null;
+  const J = (res, o) => res.end(JSON.stringify(o));
   const api = await new Promise(r => {
     const s = http.createServer((req, res) => {
       let d = ''; req.on('data', c => d += c); req.on('end', () => {
@@ -61,6 +64,21 @@ function fakeAddon(port, manifest, catalogFn) {
           return res.end(JSON.stringify({ movie_results: [{ title: 'Film Zero', overview: 'Una trama in italiano.' }], tv_results: [] }));
         }
         if (req.url.startsWith('/tmdb/find/tt1001?')) return res.end(JSON.stringify({ movie_results: [{ title: 'Film Uno', overview: '' }] }));
+        // --- schede (meta) ---
+        const u = req.url.split('?')[0];
+        if (u === '/tmdb/find/tt5000') return J(res, { movie_results: [{ id: 50, title: 'Il film', overview: 'Trama IT', poster_path: '/p.jpg' }] });
+        if (u === '/tmdb/movie/50') return J(res, { id: 50, title: 'Il film', overview: 'Trama IT', poster_path: '/p.jpg', vote_average: 7.84, vote_count: 100, external_ids: { imdb_id: 'tt5000' }, images: { logos: [{ iso_639_1: 'en', file_path: '/logo-en.png' }, { iso_639_1: 'it', file_path: '/logo-it.png' }] } });
+        if (u === '/cinemeta/meta/movie/tt5000.json') return J(res, { meta: { id: 'tt5000', type: 'movie', name: 'The Film', description: 'English plot', logo: 'en.png', imdbRating: '8.1', poster: 'cm.jpg' } });
+        if (u === '/tmdb/find/tt6000') return J(res, { movie_results: [], tv_results: [{ id: 60, name: 'La serie' }] });
+        if (u === '/tmdb/tv/60') return J(res, { id: 60, name: 'La serie', overview: 'Trama serie', external_ids: { imdb_id: 'tt6000' }, images: { logos: [] } });
+        if (u === '/tmdb/tv/60/season/1') return J(res, { episodes: [{ episode_number: 1, name: 'Il pilota', overview: 'Ep IT' }, { episode_number: 2, name: 'Episodio 2', overview: '' }] });
+        if (u === '/cinemeta/meta/series/tt6000.json') return J(res, { meta: { id: 'tt6000', type: 'series', name: 'The Show', logo: 'en.png', videos: [
+          { id: 'tt6000:1:1', season: 1, episode: 1, name: 'Pilot', overview: 'EN1' },
+          { id: 'tt6000:1:2', season: 1, number: 2, name: 'Second', overview: 'EN2' }] } });
+        if (u === '/tmdb/tv/70') return J(res, { id: 70, name: 'Solo TMDB', overview: 'Solo qui', status: 'Ended', first_air_date: '2020-01-01', last_air_date: '2021-05-01', seasons: [{ season_number: 1 }], external_ids: { imdb_id: null } });
+        if (u === '/tmdb/tv/70/season/1') return J(res, { episodes: [{ episode_number: 1, name: 'Uno', air_date: '2020-01-01' }] });
+        if (u.startsWith('/cinemeta/')) { res.statusCode = 404; return J(res, {}); }
+        if (u === '/api/addonCollectionSet') { collectionSet = body; return J(res, { result: { success: true } }); }
         if (req.url.startsWith('/tmdb/')) return res.end(JSON.stringify({ movie_results: [], tv_results: [] }));
         if (req.url === '/link/v2/create?type=Create') return res.end(JSON.stringify({ result: { code: 'ABC12', link: 'https://www.stremio.com/link?code=ABC12', qrcode: 'iVBORw0KGgo=' } }));
         if (req.url === '/link/v2/read?type=Read&code=ABC12') {
@@ -92,7 +110,7 @@ function fakeAddon(port, manifest, catalogFn) {
     addons: ['http://127.0.0.1:7101/manifest.json', 'stremio://127.0.0.1:7102/manifest.json'.replace('stremio://', 'http://')],
     movie: ['fantascienza', 'commedia', 'horror', 'thriller', 'azione'],
     series: ['fantascienza', 'fantasy'],
-    enrich: false, pages: 3,
+    enrich: false, pages: 3, itTitle: false,
   })).toString('base64url');
 
   const man = await get(`/${cfg}/manifest.json`);
@@ -168,6 +186,36 @@ function fakeAddon(port, manifest, catalogFn) {
   assert.equal(syncCat.metas.length, 50, 'titoli presi dagli addon installati');
   const syncSt = await get(`/${cfgSync}/status`);
   assert.deepEqual(syncSt.sourceNames, ['A']);
+
+  // Scheda del titolo in italiano
+  assert(man.resources.some(r => r.name === 'meta' && r.idPrefixes.includes('tt')), 'risorsa meta nel manifest');
+  const mv = (await get(`/${cfgIt}/meta/movie/tt5000.json`)).meta;
+  assert.equal(mv.name, 'Il film'); assert.equal(mv.description, 'Trama IT');
+  assert.equal(mv.poster, 'https://image.tmdb.org/t/p/w500/p.jpg');
+  assert.equal(mv.logo, 'https://image.tmdb.org/t/p/original/logo-it.png');
+  assert.equal(mv.imdbRating, '8.1', 'voto IMDb di Cinemeta mantenuto');
+  const sr = (await get(`/${cfgIt}/meta/series/tt6000.json`)).meta;
+  assert.equal(sr.name, 'La serie'); assert.equal(sr.logo, undefined, 'logo inglese rimosso');
+  assert.equal(sr.videos[0].title, 'Il pilota'); assert.equal(sr.videos[0].overview, 'Ep IT');
+  assert.equal(sr.videos[0].id, 'tt6000:1:1', 'id episodi invariati per gli stream');
+  assert.equal(sr.videos[1].name, 'Second', 'titolo generico "Episodio 2" non sostituito');
+  assert.equal(sr.videos[1].overview, 'EN2');
+  const tv = (await get(`/${cfgIt}/meta/series/tmdb:70.json`)).meta;
+  assert.equal(tv.id, 'tmdb:70'); assert.equal(tv.releaseInfo, '2020-2021');
+  assert.equal(tv.videos[0].id, 'tmdb:70:1:1'); assert.equal(tv.videos[0].title, 'Uno');
+  const none = await fetch(`http://127.0.0.1:7100/${cfgIt}/meta/movie/tt9999.json`);
+  assert.equal(none.status, 404);
+
+  // Installa in cima sopra Cinemeta
+  const myUrl = `http://127.0.0.1:7100/${cfgIt}/manifest.json`;
+  const noKey = await post('/install-top', { manifestUrl: myUrl });
+  assert.equal(noKey.status, 400);
+  const top = await post('/install-top', { authKey: 'chiave-valida-123', manifestUrl: myUrl });
+  assert.equal(top.status, 200, JSON.stringify(top.data));
+  assert.equal(collectionSet.addons[0].transportUrl, myUrl);
+  assert.equal(collectionSet.addons[0].manifest.id, 'org.generi.organizzatore');
+  assert.equal(collectionSet.addons.filter(x => x.manifest.id === 'org.generi.organizzatore').length, 1, 'vecchia copia rimossa');
+  assert.deepEqual(collectionSet.addons.slice(1).map(x => x.manifest.id), ['a', 's'], 'altri addon invariati');
 
   console.log('✅ Tutti i test superati');
   server.close(); a.close(); b.close(); api.close();
