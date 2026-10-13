@@ -45,6 +45,7 @@ function parseConfig(str) {
     itPoster: raw.itPoster !== false,
     meta: raw.meta !== false,
     castPage: raw.castPage !== false,
+    castStream: raw.castStream !== false,
     authKey,
   };
 }
@@ -95,7 +96,8 @@ function buildManifest(cfg, configured) {
     logo: 'https://dl.strem.io/addon-logo.png',
     // Con TMDB attivo l'addon fornisce anche le schede dei titoli in italiano
     resources: withMeta
-      ? ['catalog', { name: 'meta', types: ['movie', 'series'], idPrefixes: cfg.castPage ? ['tt', 'tmdb:', cast.PERSON_PREFIX] : ['tt', 'tmdb:'] }]
+      ? ['catalog', { name: 'meta', types: ['movie', 'series'], idPrefixes: cfg.castPage ? ['tt', 'tmdb:', cast.PERSON_PREFIX] : ['tt', 'tmdb:'] },
+        ...(cfg.castPage && cfg.castStream ? [{ name: 'stream', types: ['movie', 'series'], idPrefixes: ['tt', 'tmdb:'] }] : [])]
       : ['catalog'],
     types: ['movie', 'series'],
     catalogs,
@@ -231,7 +233,9 @@ const server = http.createServer(async (req, res) => {
 
     // config opzionale come primo segmento
     let cfgStr = '';
-    if (!['manifest.json', 'catalog', 'meta', 'status'].includes(parts[0])) cfgStr = parts.shift();
+    if (!['manifest.json', 'catalog', 'meta', 'stream', 'status'].includes(parts[0])) cfgStr = parts.shift();
+    const proto = req.headers['x-forwarded-proto'] || (/^(localhost|127\.)/.test(req.headers.host || '') ? 'http' : 'https');
+    const manifestUrl = `${proto}://${req.headers.host}/${cfgStr ? cfgStr + '/' : ''}manifest.json`;
     const cfg = parseConfig(cfgStr);
 
     if (parts[0] === 'manifest.json') return send(res, 200, buildManifest(cfg, !!cfgStr), undefined, 3600);
@@ -255,11 +259,17 @@ const server = http.createServer(async (req, res) => {
     if (parts[0] === 'meta' && parts.length >= 3) {
       const type = parts[1];
       const id = parts[2].replace(/\.json$/, '');
-      const proto = req.headers['x-forwarded-proto'] || (/^(localhost|127\.)/.test(req.headers.host || '') ? 'http' : 'https');
-      const manifestUrl = `${proto}://${req.headers.host}/${cfgStr ? cfgStr + '/' : ''}manifest.json`;
       const out = cfg.meta ? await getMeta(cfg, type, id, manifestUrl) : null;
       if (!out) return send(res, 404, { meta: null });
       return send(res, 200, { meta: out.meta }, undefined, out.complete ? 12 * 3600 : 300);
+    }
+
+    if (parts[0] === 'stream' && parts.length >= 3) {
+      const type = parts[1];
+      const id = parts[2].replace(/\.json$/, '');
+      const ok = cfg.meta && cfg.castPage && cfg.castStream && tmdb.enabled() && (type === 'movie' || type === 'series');
+      const streams = ok ? await cast.castStream(manifestUrl, type, id).catch(() => []) : [];
+      return send(res, 200, { streams }, undefined, streams.length ? 24 * 3600 : 300);
     }
 
     send(res, 404, { err: 'not found' });
