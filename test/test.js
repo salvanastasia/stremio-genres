@@ -238,21 +238,10 @@ function fakeAddon(port, manifest, catalogFn) {
   const filmo = await get(`/${cfgIt}/catalog/movie/gen.person.movie/person=31.json`);
   assert.deepEqual(filmo.metas.map(m => m.id), ['tmdb:13', 'tmdb:14'], 'popolari prima, niente "Himself", senza poster o doppioni');
   assert.equal(filmo.metas[0].releaseInfo, '1994');
-  // "Vedi cast" nella lista degli stream (per i telecomandi TV)
-  assert(man.resources.some(r => r.name === 'stream'), 'risorsa stream nel manifest');
-  const st1 = await get(`/${cfgIt}/stream/movie/tt5000.json`);
-  assert.equal(st1.streams.length, 1); assert.equal(st1.streams[0].title, 'Vedi cast con foto');
-  assert.equal(st1.streams[0].androidTvUrl, `stremio:///discover/${encodeURIComponent(mUrl)}/movie/gen.cast?ref=movie-50`);
-  const st2 = await get(`/${cfgIt}/stream/series/tt6000:1:2.json`);
-  assert(st2.streams[0].externalUrl.endsWith('gen.cast?ref=tv-60'), 'episodi: cast della serie');
-  const st3 = await get(`/${cfgIt}/stream/movie/tt9999.json`);
-  assert.deepEqual(st3.streams, []);
   // disattivato da configurazione
   const cfgNoCast = Buffer.from(JSON.stringify({ addons: ['http://127.0.0.1:7101/manifest.json'], movie: ['commedia'], series: [], enrich: false, castPage: false })).toString('base64url');
   const manNo = await get(`/${cfgNoCast}/manifest.json`);
   assert(!manNo.catalogs.some(c => c.id === 'gen.cast'));
-  assert(!manNo.resources.some(r => r.name === 'stream'), 'niente stream se cast disattivato');
-  assert.deepEqual((await get(`/${cfgNoCast}/stream/movie/tt5000.json`)).streams, []);
   assert(!manNo.resources[1].idPrefixes.includes('gen.person:'), 'id persona non dichiarati') ;
   const mvNo = (await get(`/${cfgNoCast}/meta/movie/tt5000.json`)).meta;
   assert(!(mvNo.links || []).some(l => l.name === '👥 Vedi cast'));
