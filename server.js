@@ -229,7 +229,7 @@ const server = http.createServer(async (req, res) => {
       const data = await getIndex(cfgKey(cfg), cfg);
       const counts = {};
       for (const t of ['movie', 'series']) for (const [k, v] of Object.entries(data.index[t])) counts[`${t}.${k}`] = v.length;
-      return send(res, 200, { ...data.stats, counts });
+      return send(res, 200, { ...data.stats, tmdb: await tmdb.check(), counts });
     }
 
     if (parts[0] === 'catalog' && parts.length >= 3) {
@@ -244,9 +244,9 @@ const server = http.createServer(async (req, res) => {
     if (parts[0] === 'meta' && parts.length >= 3) {
       const type = parts[1];
       const id = parts[2].replace(/\.json$/, '');
-      const meta = cfg.meta ? await getMeta(cfg, type, id) : null;
-      if (!meta) return send(res, 404, { meta: null });
-      return send(res, 200, { meta }, undefined, 12 * 3600);
+      const out = cfg.meta ? await getMeta(cfg, type, id) : null;
+      if (!out) return send(res, 404, { meta: null });
+      return send(res, 200, { meta: out.meta }, undefined, out.complete ? 12 * 3600 : 300);
     }
 
     send(res, 404, { err: 'not found' });
