@@ -67,7 +67,18 @@ function fakeAddon(port, manifest, catalogFn) {
         // --- schede (meta) ---
         const u = req.url.split('?')[0];
         if (u === '/tmdb/find/tt5000') return J(res, { movie_results: [{ id: 50, title: 'Il film', overview: 'Trama IT', poster_path: '/p.jpg' }] });
-        if (u === '/tmdb/movie/50') return J(res, { id: 50, title: 'Il film', overview: 'Trama IT', poster_path: '/p.jpg', vote_average: 7.84, vote_count: 100, external_ids: { imdb_id: 'tt5000' }, images: { logos: [{ iso_639_1: 'en', file_path: '/logo-en.png' }, { iso_639_1: 'it', file_path: '/logo-it.png' }] } });
+        if (u === '/tmdb/movie/50') return J(res, { id: 50, title: 'Il film', overview: 'Trama IT', poster_path: '/p.jpg', vote_average: 7.84, vote_count: 100, external_ids: { imdb_id: 'tt5000' }, images: { logos: [{ iso_639_1: 'en', file_path: '/logo-en.png' }, { iso_639_1: 'it', file_path: '/logo-it.png' }] },
+          credits: { cast: [{ id: 32, name: 'Robin', character: 'Jenny', profile_path: null, order: 1 }, { id: 31, name: 'Tom Hanks', character: 'Forrest Gump', profile_path: '/t.jpg', order: 0 }] } });
+        if (u === '/tmdb/person/31') {
+          const it = req.url.includes('language=it-IT');
+          return J(res, { id: 31, name: 'Tom Hanks', biography: it ? '' : 'English bio', birthday: '1956-07-09', profile_path: '/t.jpg' });
+        }
+        if (u === '/tmdb/person/31/movie_credits') return J(res, { cast: [
+          { id: 13, title: 'Forrest Gump', character: 'Forrest', poster_path: '/fg.jpg', vote_count: 900, release_date: '1994-07-06' },
+          { id: 14, title: 'Poco noto', character: 'X', poster_path: '/pn.jpg', vote_count: 5 },
+          { id: 15, title: 'Documentario', character: 'Himself', poster_path: '/d.jpg', vote_count: 9999 },
+          { id: 16, title: 'Senza poster', character: 'Y', poster_path: null, vote_count: 50 },
+          { id: 13, title: 'Forrest Gump', character: 'Forrest', poster_path: '/fg.jpg', vote_count: 900 }] });
         if (u === '/cinemeta/meta/movie/tt5000.json') return J(res, { meta: { id: 'tt5000', type: 'movie', name: 'The Film', description: 'English plot', logo: 'en.png', imdbRating: '8.1', poster: 'cm.jpg' } });
         if (u === '/tmdb/find/tt6000') return J(res, { movie_results: [], tv_results: [{ id: 60, name: 'La serie' }] });
         if (u === '/tmdb/tv/60') return J(res, { id: 60, name: 'La serie', overview: 'Trama serie', external_ids: { imdb_id: 'tt6000' }, images: { logos: [] } });
@@ -205,6 +216,35 @@ function fakeAddon(port, manifest, catalogFn) {
   assert.equal(tv.videos[0].id, 'tmdb:70:1:1'); assert.equal(tv.videos[0].title, 'Uno');
   const none = await fetch(`http://127.0.0.1:7100/${cfgIt}/meta/movie/tt9999.json`);
   assert.equal(none.status, 404);
+
+  // Vedi cast: link nella scheda, griglia con foto tonde, scheda attore, filmografia
+  const mUrl = `http://127.0.0.1:7100/${cfgIt}/manifest.json`;
+  assert(man.catalogs.some(c => c.id === 'gen.cast'), 'catalogo cast nel manifest');
+  const links = mv.links.filter(l => l.category === 'Cast');
+  assert.equal(links[0].name, '👥 Vedi cast');
+  assert.equal(links[0].url, `stremio:///discover/${encodeURIComponent(mUrl)}/movie/gen.cast?ref=movie-50`);
+  assert.deepEqual(links.slice(1).map(l => l.name), ['Tom Hanks', 'Robin'], 'ordine del cast');
+  assert(links[1].url.endsWith('/movie/gen.person.movie?person=31'));
+  const castCat = await get(`/${cfgIt}/catalog/movie/gen.cast/ref=movie-50.json`);
+  assert.equal(castCat.metas[0].name, 'Tom Hanks (Forrest Gump)');
+  assert.equal(castCat.metas[0].id, 'gen.person:31'); assert.equal(castCat.metas[0].posterShape, 'square');
+  assert(castCat.metas[0].poster.includes('mask=circle') && castCat.metas[0].poster.includes(encodeURIComponent('image.tmdb.org/t/p/w300/t.jpg')));
+  assert.equal(castCat.metas[1].poster, undefined, 'senza foto niente immagine rotta');
+  const person = (await get(`/${cfgIt}/meta/movie/gen.person:31.json`)).meta;
+  assert.equal(person.name, 'Tom Hanks'); assert.equal(person.description, 'English bio', 'ripiego biografia inglese');
+  assert.equal(person.releaseInfo, '1956');
+  assert(person.links[0].url.endsWith('/movie/gen.person.movie?person=31'));
+  assert(person.links[1].url.endsWith('/series/gen.person.series?person=31'));
+  const filmo = await get(`/${cfgIt}/catalog/movie/gen.person.movie/person=31.json`);
+  assert.deepEqual(filmo.metas.map(m => m.id), ['tmdb:13', 'tmdb:14'], 'popolari prima, niente "Himself", senza poster o doppioni');
+  assert.equal(filmo.metas[0].releaseInfo, '1994');
+  // disattivato da configurazione
+  const cfgNoCast = Buffer.from(JSON.stringify({ addons: ['http://127.0.0.1:7101/manifest.json'], movie: ['commedia'], series: [], enrich: false, castPage: false })).toString('base64url');
+  const manNo = await get(`/${cfgNoCast}/manifest.json`);
+  assert(!manNo.catalogs.some(c => c.id === 'gen.cast'));
+  assert(!manNo.resources[1].idPrefixes.includes('gen.person:'), 'id persona non dichiarati') ;
+  const mvNo = (await get(`/${cfgNoCast}/meta/movie/tt5000.json`)).meta;
+  assert(!(mvNo.links || []).some(l => l.name === '👥 Vedi cast'));
 
   // Installa in cima sopra Cinemeta
   const myUrl = `http://127.0.0.1:7100/${cfgIt}/manifest.json`;

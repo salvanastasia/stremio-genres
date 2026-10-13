@@ -52,6 +52,8 @@ Le descrizioni di Cinemeta sono in inglese. Per averle in italiano l'addon usa T
 
 Con la chiave l'addon fornisce anche la **scheda completa del titolo** in italiano (titolo, trama, poster, logo, titoli e trame degli episodi) partendo da Cinemeta, così gli addon di stream continuano a funzionare. Perché Stremio la usi, l'addon deve stare **sopra Cinemeta**: nella pagina di configurazione, dopo "Accedi con Stremio", usa **Installa in cima (sopra Cinemeta)**.
 
+**Vedi cast** (attivabile/disattivabile in configurazione): nella scheda compare il pulsante "👥 Vedi cast" che apre una griglia di attori con foto tonde e "Nome (Personaggio)". Ogni attore apre la sua scheda (biografia, link a film e serie); i nomi degli attori nella scheda portano direttamente ai loro film. Le foto sono ritagliate a cerchio dal servizio gratuito wsrv.nl.
+
 Senza la chiave l'addon funziona normalmente con i testi originali. In `/status` il campo `italian` indica quanti titoli sono stati tradotti.
 
 Variabile opzionale: `DEFAULT_ADDONS` (link separati da virgola proposti nella pagina di configurazione).

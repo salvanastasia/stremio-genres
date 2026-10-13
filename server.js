@@ -9,6 +9,7 @@ const { getIndex, PAGE } = require('./lib/aggregator');
 const account = require('./lib/stremio-account');
 const tmdb = require('./lib/tmdb');
 const { getMeta } = require('./lib/meta');
+const cast = require('./lib/cast');
 const pkg = require('./package.json');
 
 const PORT = process.env.PORT || 7000;
@@ -43,6 +44,7 @@ function parseConfig(str) {
     itTitle: raw.itTitle !== false,
     itPoster: raw.itPoster !== false,
     meta: raw.meta !== false,
+    castPage: raw.castPage !== false,
     authKey,
   };
 }
@@ -82,6 +84,9 @@ function buildManifest(cfg, configured) {
     }
   }
 
+  const withMeta = cfg.meta && tmdb.enabled();
+  if (withMeta && cfg.castPage) catalogs.push(...cast.manifestCatalogs());
+
   return {
     id: 'org.generi.organizzatore',
     version: pkg.version,
@@ -89,8 +94,8 @@ function buildManifest(cfg, configured) {
     description: 'Riorganizza i titoli di tutti i tuoi addon in categorie: Film › Fantascienza, Commedia, Thriller, Horror… e lo stesso per le Serie.',
     logo: 'https://dl.strem.io/addon-logo.png',
     // Con TMDB attivo l'addon fornisce anche le schede dei titoli in italiano
-    resources: cfg.meta && tmdb.enabled()
-      ? ['catalog', { name: 'meta', types: ['movie', 'series'], idPrefixes: ['tt', 'tmdb:'] }]
+    resources: withMeta
+      ? ['catalog', { name: 'meta', types: ['movie', 'series'], idPrefixes: cfg.castPage ? ['tt', 'tmdb:', cast.PERSON_PREFIX] : ['tt', 'tmdb:'] }]
       : ['catalog'],
     types: ['movie', 'series'],
     catalogs,
@@ -111,6 +116,12 @@ function parseExtra(str) {
 }
 
 async function handleCatalog(cfg, type, id, extra) {
+  // Cast con foto e filmografia degli attori
+  if (id === cast.CAST_CATALOG || id === cast.FILMO.movie || id === cast.FILMO.series) {
+    if (!cfg.castPage || !tmdb.enabled() || (extra.skip && extra.skip !== '0')) return { metas: [] };
+    if (id === cast.CAST_CATALOG) return { metas: await cast.castCatalog(extra.ref) };
+    return { metas: await cast.filmography(extra.person, id === cast.FILMO.series ? 'series' : 'movie') };
+  }
   const m = /^gen\.(movie|series)\.([a-z]+)$/.exec(id);
   if (!m || m[1] !== type) return { metas: [] };
   let key = m[2];
@@ -244,7 +255,9 @@ const server = http.createServer(async (req, res) => {
     if (parts[0] === 'meta' && parts.length >= 3) {
       const type = parts[1];
       const id = parts[2].replace(/\.json$/, '');
-      const out = cfg.meta ? await getMeta(cfg, type, id) : null;
+      const proto = req.headers['x-forwarded-proto'] || (/^(localhost|127\.)/.test(req.headers.host || '') ? 'http' : 'https');
+      const manifestUrl = `${proto}://${req.headers.host}/${cfgStr ? cfgStr + '/' : ''}manifest.json`;
+      const out = cfg.meta ? await getMeta(cfg, type, id, manifestUrl) : null;
       if (!out) return send(res, 404, { meta: null });
       return send(res, 200, { meta: out.meta }, undefined, out.complete ? 12 * 3600 : 300);
     }

@@ -128,6 +128,8 @@
     <label class="chip"><input type="checkbox" id="itPoster" checked> Poster italiani quando disponibili</label>
     <p></p>
     <label class="chip"><input type="checkbox" id="meta" checked> Schede dei titoli in italiano (trama, episodi, voto) al posto di Cinemeta</label>
+    <p></p>
+    <label class="chip"><input type="checkbox" id="castPage" checked> Pulsante “Vedi cast” con foto degli attori; i nomi aprono i loro film</label>
   </section>
 
   <section>
@@ -181,7 +183,7 @@ if (saved.addons && !saved.authKey) $('manual').open = true;
 if (saved.sort) $('sort').value = saved.sort;
 if (saved.pages) $('pages').value = saved.pages;
 for (const k of ['enrich', 'useGenreFilters', 'browse', 'itDescription']) if (saved[k] === false) $(k).checked = false;
-for (const k of ['itTitle', 'itPoster', 'meta']) if (saved[k] === false) $(k).checked = false;
+for (const k of ['itTitle', 'itPoster', 'meta', 'castPage']) if (saved[k] === false) $(k).checked = false;
 if (authKey) { $('quickTop').hidden = false; $('autosync').checked = true; $('importMsg').className = 'msg ok'; $('importMsg').textContent = 'Sincronizzazione automatica attiva.'; }
 
 function applyImport(data) {
@@ -281,6 +283,7 @@ function buildLink() {
     itTitle: $('itTitle').checked,
     itPoster: $('itPoster').checked,
     meta: $('meta').checked,
+    castPage: $('castPage').checked,
   };
   if (sync) cfg.authKey = authKey;
   if (!cfg.movie.length && !cfg.series.length) { alert('Scegli almeno una categoria.'); return null; }
