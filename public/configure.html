@@ -67,6 +67,11 @@
       </div>
     </details>
     <p class="msg" id="importMsg"></p>
+    <div id="quickTop" hidden style="margin-top:14px">
+      <button id="quickTopBtn" style="width:100%">⬆ Installa in cima (sopra Cinemeta)</button>
+      <p class="hint" style="margin:8px 0 0">Installa l'addon con le impostazioni qui sotto e lo mette al primo posto, così Stremio usa le schede in italiano. Puoi cambiare categorie e opzioni prima di premerlo.</p>
+      <p class="msg" id="quickMsg"></p>
+    </div>
     <p></p>
     <label class="chip"><input type="checkbox" id="autosync"> Sincronizzazione automatica: includi anche gli addon che installerò in futuro</label>
     <p class="warn">Con la sincronizzazione attiva, il link dell'addon contiene una chiave di accesso al tuo account Stremio: non condividerlo con nessuno. Puoi revocarla in qualsiasi momento facendo logout da Stremio su tutti i dispositivi.</p>
@@ -177,10 +182,11 @@ if (saved.sort) $('sort').value = saved.sort;
 if (saved.pages) $('pages').value = saved.pages;
 for (const k of ['enrich', 'useGenreFilters', 'browse', 'itDescription']) if (saved[k] === false) $(k).checked = false;
 for (const k of ['itTitle', 'itPoster', 'meta']) if (saved[k] === false) $(k).checked = false;
-if (authKey) { $('autosync').checked = true; $('importMsg').className = 'msg ok'; $('importMsg').textContent = 'Sincronizzazione automatica attiva.'; }
+if (authKey) { $('quickTop').hidden = false; $('autosync').checked = true; $('importMsg').className = 'msg ok'; $('importMsg').textContent = 'Sincronizzazione automatica attiva.'; }
 
 function applyImport(data) {
   const msg = $('importMsg');
+  $('quickTop').hidden = false;
   authKey = data.authKey;
   const current = $('addons').value.split(/\s+/).filter(Boolean).filter(u => !DEFAULT_ADDONS.includes(u));
   $('addons').value = [...new Set([...data.addons.map(a => a.url), ...current])].join('\n');
@@ -256,11 +262,12 @@ function b64url(str) {
   return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-$('go').onclick = () => {
+// Costruisce il link dell'addon dalle impostazioni; null se manca qualcosa.
+function buildLink() {
   const addons = $('addons').value.split(/\s+/).map(s => s.trim()).filter(s => /^(https?|stremio):\/\//i.test(s));
   const sync = $('autosync').checked;
-  if (sync && !authKey) { alert('Per la sincronizzazione automatica premi prima “Accedi con Stremio”.'); return; }
-  if (!addons.length && !sync) { alert('Inserisci almeno un link manifest oppure importa i tuoi addon.'); return; }
+  if (sync && !authKey) { alert('Per la sincronizzazione automatica premi prima “Accedi con Stremio”.'); return null; }
+  if (!addons.length && !sync) { alert('Inserisci almeno un link manifest oppure importa i tuoi addon.'); return null; }
   const cfg = {
     addons,
     movie: [...document.querySelectorAll('input[name=movie]:checked')].map(i => i.value),
@@ -276,37 +283,45 @@ $('go').onclick = () => {
     meta: $('meta').checked,
   };
   if (sync) cfg.authKey = authKey;
-  if (!cfg.movie.length && !cfg.series.length) { alert('Scegli almeno una categoria.'); return; }
+  if (!cfg.movie.length && !cfg.series.length) { alert('Scegli almeno una categoria.'); return null; }
   const https = `${location.origin}/${b64url(JSON.stringify(cfg))}/manifest.json`;
-  const stremio = https.replace(/^https?:\/\//, 'stremio://');
-  $('install').href = stremio;
+  $('install').href = https.replace(/^https?:\/\//, 'stremio://');
   $('link').textContent = https;
+  return https;
+}
+
+async function installTop(btn, msg) {
+  if (!authKey) { msg.className = 'msg err'; msg.textContent = 'Premi prima “Accedi con Stremio” in alto.'; return; }
+  const url = buildLink();
+  if (!url) return;
+  msg.className = 'msg'; msg.textContent = 'Installo…';
+  btn.disabled = true;
+  try {
+    const r = await fetch('/install-top', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ authKey, manifestUrl: url }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Installazione non riuscita');
+    msg.className = 'msg ok';
+    msg.textContent = '✓ Installato in prima posizione. Ordine attuale: ' + d.order.join(' › ') + '. Chiudi e riapri Stremio sulla TV.';
+  } catch (e) {
+    msg.className = 'msg err'; msg.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+$('go').onclick = () => {
+  if (!buildLink()) return;
   $('out').classList.add('show');
   $('topMsg').className = 'msg';
   $('topMsg').textContent = authKey ? '' : 'Per usarlo premi prima “Accedi con Stremio” in alto.';
   $('installTop').focus();
 };
 
-$('installTop').onclick = async () => {
-  const msg = $('topMsg');
-  if (!authKey) { msg.className = 'msg err'; msg.textContent = 'Premi prima “Accedi con Stremio” in alto.'; return; }
-  msg.className = 'msg'; msg.textContent = 'Installo…';
-  $('installTop').disabled = true;
-  try {
-    const r = await fetch('/install-top', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ authKey, manifestUrl: $('link').textContent }),
-    });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error || 'Installazione non riuscita');
-    msg.className = 'msg ok';
-    msg.textContent = '✓ Installato in prima posizione. Ordine attuale: ' + d.order.join(' › ') + '. Riavvia Stremio sulla TV.';
-  } catch (e) {
-    msg.className = 'msg err'; msg.textContent = e.message;
-  } finally {
-    $('installTop').disabled = false;
-  }
-};
+$('installTop').onclick = () => installTop($('installTop'), $('topMsg'));
+$('quickTopBtn').onclick = () => installTop($('quickTopBtn'), $('quickMsg'));
 
 $('copy').onclick = async () => {
   try { await navigator.clipboard.writeText($('link').textContent); $('copy').textContent = 'Copiato ✓'; }
