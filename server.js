@@ -45,6 +45,7 @@ function parseConfig(str) {
     itPoster: raw.itPoster !== false,
     meta: raw.meta !== false,
     castPage: raw.castPage !== false,
+    genreTag: raw.genreTag !== false,
     authKey,
   };
 }

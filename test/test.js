@@ -67,7 +67,7 @@ function fakeAddon(port, manifest, catalogFn) {
         // --- schede (meta) ---
         const u = req.url.split('?')[0];
         if (u === '/tmdb/find/tt5000') return J(res, { movie_results: [{ id: 50, title: 'Il film', overview: 'Trama IT', poster_path: '/p.jpg' }] });
-        if (u === '/tmdb/movie/50') return J(res, { id: 50, title: 'Il film', overview: 'Trama IT', poster_path: '/p.jpg', vote_average: 7.84, vote_count: 100, external_ids: { imdb_id: 'tt5000' }, images: { logos: [{ iso_639_1: 'en', file_path: '/logo-en.png' }, { iso_639_1: 'it', file_path: '/logo-it.png' }] },
+        if (u === '/tmdb/movie/50') return J(res, { id: 50, genres: [{ name: 'Fantascienza' }, { name: 'Dramma' }, { name: 'Azione' }], title: 'Il film', overview: 'Trama IT', poster_path: '/p.jpg', vote_average: 7.84, vote_count: 100, external_ids: { imdb_id: 'tt5000' }, images: { logos: [{ iso_639_1: 'en', file_path: '/logo-en.png' }, { iso_639_1: 'it', file_path: '/logo-it.png' }] },
           credits: { cast: [{ id: 32, name: 'Robin', character: 'Jenny', profile_path: null, order: 1 }, { id: 31, name: 'Tom Hanks', character: 'Forrest Gump', profile_path: '/t.jpg', order: 0 }] } });
         if (u === '/tmdb/person/31') {
           const it = req.url.includes('language=it-IT');
@@ -79,7 +79,8 @@ function fakeAddon(port, manifest, catalogFn) {
           { id: 15, title: 'Documentario', character: 'Himself', poster_path: '/d.jpg', vote_count: 9999 },
           { id: 16, title: 'Senza poster', character: 'Y', poster_path: null, vote_count: 50 },
           { id: 13, title: 'Forrest Gump', character: 'Forrest', poster_path: '/fg.jpg', vote_count: 900 }] });
-        if (u === '/cinemeta/meta/movie/tt5000.json') return J(res, { meta: { id: 'tt5000', type: 'movie', name: 'The Film', description: 'English plot', logo: 'en.png', imdbRating: '8.1', poster: 'cm.jpg' } });
+        if (u === '/cinemeta/meta/movie/tt5000.json') return J(res, { meta: { id: 'tt5000', type: 'movie', name: 'The Film', description: 'English plot', logo: 'en.png', imdbRating: '8.1', poster: 'cm.jpg', runtime: '120 min',
+          links: [{ name: 'Sci-Fi', category: 'Genres', url: 'stremio:///discover/x/movie/top?genre=Sci-Fi' }] } });
         if (u === '/tmdb/find/tt6000') return J(res, { movie_results: [], tv_results: [{ id: 60, name: 'La serie' }] });
         if (u === '/tmdb/tv/60') return J(res, { id: 60, name: 'La serie', overview: 'Trama serie', external_ids: { imdb_id: 'tt6000' }, images: { logos: [] } });
         if (u === '/tmdb/tv/60/season/1') return J(res, { episodes: [{ episode_number: 1, name: 'Il pilota', overview: 'Ep IT' }, { episode_number: 2, name: 'Episodio 2', overview: '' }] });
@@ -139,6 +140,7 @@ function fakeAddon(port, manifest, catalogFn) {
   assert.equal(ids.length, 51, '50 SF da A + 1 solo da B');
 
   const zero = sf.metas.find(m => m.id === 'tt1000');
+  assert.equal(zero.runtime, 'Fantascienza, Azione', 'genere nelle anteprime delle righe');
   assert.equal(zero.description, 'Una trama in italiano.', 'trama tradotta');
   assert.equal(zero.name.startsWith('Film 0'), true, 'titolo invariato senza opzione');
 
@@ -201,6 +203,8 @@ function fakeAddon(port, manifest, catalogFn) {
   // Scheda del titolo in italiano
   assert(man.resources.some(r => r.name === 'meta' && r.idPrefixes.includes('tt')), 'risorsa meta nel manifest');
   const mv = (await get(`/${cfgIt}/meta/movie/tt5000.json`)).meta;
+  assert.equal(mv.runtime, '120 min · Fantascienza, Dramma', 'genere accanto al voto');
+  assert.deepEqual(mv.links.filter(l => l.category === 'Genres').map(l => l.name), ['Fantascienza'], 'pulsanti generi in italiano');
   assert.equal(mv.name, 'Il film'); assert.equal(mv.description, 'Trama IT');
   assert.equal(mv.poster, 'https://image.tmdb.org/t/p/w500/p.jpg');
   assert.equal(mv.logo, 'https://image.tmdb.org/t/p/original/logo-it.png');
@@ -244,6 +248,8 @@ function fakeAddon(port, manifest, catalogFn) {
   assert(!manNo.catalogs.some(c => c.id === 'gen.cast'));
   assert(!manNo.resources[1].idPrefixes.includes('gen.person:'), 'id persona non dichiarati') ;
   const mvNo = (await get(`/${cfgNoCast}/meta/movie/tt5000.json`)).meta;
+  const cfgNoTag = Buffer.from(JSON.stringify({ addons: ['http://127.0.0.1:7101/manifest.json'], movie: ['commedia'], series: [], enrich: false, genreTag: false })).toString('base64url');
+  assert.equal((await get(`/${cfgNoTag}/meta/movie/tt5000.json`)).meta.runtime, '120 min', 'opzione disattivabile');
   assert(!(mvNo.links || []).some(l => l.name === '👥 Vedi cast'));
 
   // Installa in cima sopra Cinemeta
